@@ -12,6 +12,8 @@ package main
 
 import (
 	"os"
+	"os/signal"
+	"syscall"
 	"fmt"
 	"time"
 	"bytes"
@@ -39,29 +41,47 @@ type UpdateComment struct {
 }
 
 func main() {
+	quitChannel := make(chan os.Signal)
+	signal.Notify(quitChannel, syscall.SIGINT, syscall.SIGTERM)
+
+	go run()
+
+	<-quitChannel
+}
+
+func run() {
 
 	// Initialise and read configuration properties from config.yaml file
 	yamlFile := config.NewYAMLFile("config.yaml")
 	conf := config.NewConfig([]config.Provider{yamlFile})
 
-	externalIp := getExternalIP(conf)
 
 	// Read configuration properties from config.yaml file
 	AWSAccessKeyId, _ := conf.String("aws_setting.aws_access_key_id")
 	AWSSecretAccessKey, _ := conf.String("aws_setting.aws_secret_access_key")
 	AWSHostedZoneId, _ := conf.String("aws_setting.aws_hosted_zone_id")
 	AWSFQDN, _ := conf.String("aws_setting.aws_fqdn")
+	SleepTime, _ := conf.Int("sleep_time")
 
 	// Connect to AWS Route53 service with configurations provided in config.yaml and obtain a session
 	svc := route53.New(session.New(&aws.Config{Credentials:credentials.NewStaticCredentials(AWSAccessKeyId, AWSSecretAccessKey, "")}))
 
-	awsIP := getCurrentAWSIP(svc, AWSHostedZoneId, AWSFQDN)
+	for {
+		fmt.Printf("Checking if %s needs to be updated...\n", AWSFQDN)
+		awsIP := getCurrentAWSIP(svc, AWSHostedZoneId, AWSFQDN)
+		externalIP := getExternalIP(conf)
 
-	if strings.Compare(awsIP, externalIp) != 0 {
-		updateRoute53Record(svc, AWSHostedZoneId, AWSFQDN, externalIp)
+		fmt.Printf("AWS currently has IP %s, external IP service has %s\n", awsIP, externalIP)
+
+		if strings.Compare(awsIP, externalIP) != 0 {
+			fmt.Print("AWS and external IP are different, updating...\n")
+			updateRoute53Record(svc, AWSHostedZoneId, AWSFQDN, externalIP)
+		} else {
+			fmt.Print("AWS and external IP are the same, not updating\n")
+		}
+		fmt.Printf("Sleeping for %d seconds...\n", SleepTime)
+		time.Sleep(time.Duration(SleepTime)*time.Second)
 	}
-
-	os.Exit(0)
 }
 
 func getExternalIP(conf *config.Config) (externalIP string) {
@@ -71,7 +91,6 @@ func getExternalIP(conf *config.Config) (externalIP string) {
 	IPResolver, _ := conf.String("ip_resolvers.ip_resolver")
 	IPResolverFallback, _ := conf.String("ip_resolvers.ip_resolver_fallback")
 
-	// Check if you have to update Route53 with new IP
 	resp1, err1 := http.Get(IPResolver)
 	if err1 != nil {
 		resp2, err2 := http.Get(IPResolverFallback)
@@ -153,6 +172,8 @@ func updateRoute53Record(svc *route53.Route53, AWSHostedZoneId string, FQDN stri
 
 	if err != nil {
 		fmt.Println(err.Error())
+	} else {
+		fmt.Println(AWSUpdateComment)
 	}
 
 	return

@@ -2,3 +2,5 @@
 *.iml
 bin
 pkg
+config.yaml
+dynamic-dns-route53-go
