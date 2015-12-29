@@ -124,7 +124,7 @@ func getCurrentAWSIP(svc *route53.Route53, AWSHostedZoneId string, FQDN string) 
 	// Iterate over the record set to find the right record and value
 	var setIP *string
 	for _, record := range resp.ResourceRecordSets {
-		if *record.Type == RecordType {
+		if *record.Type == RecordType && *record.Name == FQDN {
 			setIP = record.ResourceRecords[0].Value
 		}
 	}

@@ -4,7 +4,7 @@ ip_resolvers:
   ip_resolver_fallback : https://wtfismyip.com/text
 
 aws_setting:
-  aws_fqdn : example.com
+  aws_fqdn : example.com. # trailing . is necessary!
   aws_hosted_zone_id : REPLACE_WITH_HOST_ID
   aws_access_key_id : REPLACE_WITH_YOUR_ACCESS_KEY_ID
   aws_secret_access_key : REPLACE_WITH_SECRET_ACCESS_KEY
